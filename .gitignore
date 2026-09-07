@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv_build/
+
+# Build artifacts
+build/_work/
+build/CSVMerger/
+dist/
+*.spec.bak
+
+# OS
+.DS_Store
+
+# Generated inputs/outputs (local runs)
+to_be_merged/*
+!to_be_merged/.gitkeep
+output/
+historical/
+
+# Never commit keys of any kind (users load their own at runtime)
+*.asc
+*.pgp
+*.gpg
+*.key
+private_key.asc
