@@ -26,6 +26,17 @@ The merge output is identical to the original command-line tool: 7 columns,
 
 No GnuPG installation is required — decryption runs in pure Python.
 
+### What gets filtered out
+
+Outgoing (negative) transfers **are kept** — e.g. `-15`, `-150`, `-2000,50` all
+stay. Only two kinds of rows are **excluded**:
+
+- rows whose **amount is exactly `-1,50`** (the verification micro-transfer), and
+- rows whose **title/description contains the word `Uruchomienie`** (matched
+  case-insensitively, so `uruchomienie`, `URUCHOMIENIE`, etc. all count).
+
+Everything else is imported as before.
+
 ---
 
 ## Getting the app

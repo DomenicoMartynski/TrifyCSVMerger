@@ -69,6 +69,56 @@ def test_merge_sorts_and_accepts_any_counts():
     assert len(merge.merge_sources([("csv", csv)])) == 1
 
 
+def test_outgoing_amounts_are_kept():
+    # Outgoing (negative) transfers other than -1,50 stay in the merge.
+    txt = (
+        "H|x\n"
+        "1|10042025|-2 000,50|Firma|11|57109000045085000020260212|Przelew wych\n"
+        "2|11042025|-15,00|Firma|11|57109000045085000020260212|Oplata\n"
+        "3|12042025|-150,00|Firma|11|57109000045085000020260212|Oplata\n"
+        "4|13042025|1 500,00|Klient|22|57109000045085000020260212|Wplata\n"
+    )
+    rows = merge.rows_from_txt_content(txt)
+    assert [r[6] for r in rows] == ["-2000,50", "-15,00", "-150,00", "1500,00"]
+
+
+def test_excludes_exactly_minus_1_50():
+    # Only -1,50 is dropped; +1,50 and other negatives survive.
+    txt = (
+        "H|x\n"
+        "1|10042025|-1,50|Firma|11|57109000045085000020260212|Weryfikacja\n"
+        "2|11042025|-1,5|Firma|11|57109000045085000020260212|Weryfikacja\n"
+        "3|12042025|1,50|Klient|22|57109000045085000020260212|Zwrot\n"
+        "4|13042025|-2,50|Firma|11|57109000045085000020260212|Inne\n"
+    )
+    rows = merge.rows_from_txt_content(txt)
+    assert [r[6] for r in rows] == ["1,50", "-2,50"]
+
+    # CSV form of -1,50 is dropped too.
+    csv = "t;l\n2025-04-10;2025-04-10;OP;Weryfikacja;Bank;12 3456 7890 1234 5678 9012 3456;-1,50\n"
+    assert merge.rows_from_csv_content(csv) == []
+
+
+def test_excludes_uruchomienie_case_insensitive():
+    # Positive amount but title has the keyword in mixed case -> excluded.
+    for title in ("Uruchomienie pozyczki", "URUCHOMIENIE", "pilne uruchomienie 123"):
+        txt = f"H|x\n1|10042025|1 000,00|Firma|11|57109000045085000020260212|{title}\n"
+        assert merge.rows_from_txt_content(txt) == [], title
+
+    # Keyword appearing in the CSV description column is also caught.
+    csv = "t;l\n2025-04-10;2025-04-10;Uruchomienie;Tytul;Kto;12 3456 7890 1234 5678 9012 3456;10,00\n"
+    assert merge.rows_from_csv_content(csv) == []
+
+    # A normal positive row without the keyword survives.
+    ok = "H|x\n1|10042025|1 000,00|Firma|11|57109000045085000020260212|Zwrot pozyczki\n"
+    assert len(merge.rows_from_txt_content(ok)) == 1
+
+
+def test_zero_amount_is_kept():
+    txt = "H|x\n1|10042025|0,00|Firma|11|57109000045085000020260212|Korekta\n"
+    assert len(merge.rows_from_txt_content(txt)) == 1
+
+
 def test_csv_bytes_have_bom_and_semicolons():
     rows = [["2025-01-01", "2025-01-01", "T", "who", "acc", "500,00", ""]]
     data = merge.rows_to_csv_bytes(rows)

@@ -143,6 +143,43 @@ def build_output_row_from_csv(parts: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------------------
+# Exclusion rules
+# --------------------------------------------------------------------------
+# Business rule: outgoing transactions ARE kept (e.g. -15, -150, -2000,50).
+# Only two kinds of rows are dropped:
+#   1. the verification micro-transfer of exactly -1,50, and
+#   2. any row whose title/description contains "Uruchomienie" (any case).
+
+EXCLUDE_TITLE_KEYWORD = "uruchomienie"
+EXCLUDED_AMOUNT = -1.50          # specific micro-transfer value to drop
+_AMOUNT_EPSILON = 0.005          # tolerance for float comparison
+
+
+def _parse_amount(amount: str) -> float | None:
+    """Parse a formatted amount (e.g. ``'-2 000,50'``) to a float, or None."""
+    cleaned = amount.strip().replace(" ", "").replace(",", ".")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def is_excluded_row(row: list[str]) -> bool:
+    """Decide whether an output row must be left out of the merge.
+
+    Output layout: ``[date, date, description, title, who, account, amount]``.
+    A row is excluded when its amount is exactly -1,50 OR the keyword
+    ``Uruchomienie`` appears (case-insensitively) in the description/title.
+    All other amounts — including other outgoing (negative) values — are kept.
+    """
+    value = _parse_amount(row[6])
+    if value is not None and abs(value - EXCLUDED_AMOUNT) < _AMOUNT_EPSILON:
+        return True
+    text = f"{row[2]} {row[3]}".lower()
+    return EXCLUDE_TITLE_KEYWORD in text
+
+
+# --------------------------------------------------------------------------
 # Per-source row extraction
 # --------------------------------------------------------------------------
 
@@ -157,7 +194,10 @@ def rows_from_txt_content(content: str) -> list[list[str]]:
             continue
         if len(parts) < 7:
             continue
-        rows.append(build_output_row_from_txt(parts))
+        row = build_output_row_from_txt(parts)
+        if is_excluded_row(row):
+            continue
+        rows.append(row)
     return rows
 
 
@@ -168,7 +208,10 @@ def rows_from_csv_content(content: str) -> list[list[str]]:
         if not parts or all(not p.strip() for p in parts):
             continue
         if is_bank_operation_row(parts):
-            rows.append(build_output_row_from_csv(parts))
+            row = build_output_row_from_csv(parts)
+            if is_excluded_row(row):
+                continue
+            rows.append(row)
     return rows
 
 
